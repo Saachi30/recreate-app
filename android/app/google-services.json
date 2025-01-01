@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "326415019858",
+    "project_id": "login-auth-e4d1d",
+    "storage_bucket": "login-auth-e4d1d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:326415019858:android:20e5b71245a457a0b6148b",
+        "android_client_info": {
+          "package_name": "com.example.recmarketapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBjJkJY7wSka9TptBVlJ1Zqp4w1AdmId_U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
