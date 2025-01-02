@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../services/news_service.dart';
 import 'contract_screen.dart';
+// import 'renewable_energy_ar.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -770,61 +771,111 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildTradeEnergyButton() {
-    final authProvider = context.read<AuthProvider>();
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.green.shade500,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 5,
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            if (authProvider.user == null) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const AuthScreen()),
-              );
-            } else {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ContractScreen()),
-              );
-            }
-          },
-          child: Row(
-            // Changed to Row for better layout
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.bolt,
-                size: 28,
-                color: Colors.white,
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'Trade Energy',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
+  final authProvider = context.read<AuthProvider>();
+  return Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.green.shade500,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              spreadRadius: 1,
+              blurRadius: 5,
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              if (authProvider.user == null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AuthScreen()),
+                );
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ContractScreen()),
+                );
+              }
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.bolt,
+                  size: 28,
                   color: Colors.white,
                 ),
-              ),
-            ],
+                const SizedBox(width: 6),
+                Text(
+                  'Trade Energy',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    );
-  }
-
+      const SizedBox(width: 8),  // Spacing between buttons
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.blue.shade500,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              spreadRadius: 1,
+              blurRadius: 5,
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>  ContractScreen(),
+                ),
+              );
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.view_in_ar,
+                  size: 28,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'View in AR',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+}
   Widget _buildStatCard(String value, String label, MaterialColor color) {
     return Material(
       color: Colors.transparent,
