@@ -12,6 +12,10 @@ import 'package:http/http.dart' as http;
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/services.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:reclaim_sdk/reclaim.dart';
+import 'package:reclaim_sdk/utils/interfaces.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ContractScreen extends StatefulWidget {
   const ContractScreen({super.key});
@@ -26,16 +30,113 @@ class _ContractScreenState extends State<ContractScreen> {
   final _priceController = TextEditingController();
   bool _isLoading = false;
   final _firestore = FirebaseFirestore.instance;
+  final FlutterTts flutterTts = FlutterTts();
+  bool _blindMode = false;
+  bool _isVerified = false;
+  String _verificationStatus = '';
 
-  final String _pinataJWT =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI4ODNiZDEyZC02NTQ0LTQ1NWQtYTc1ZS0zNTg5YzAwNGI1MjkiLCJlbWFpbCI6InBlc3dhbmlzYWFjaGlAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6Ijk2ZDgzODYyN2U5ZTA2MWFjMTFhIiwic2NvcGVkS2V5U2VjcmV0IjoiNzdlNGFhNGUxMDAxMTA1ZDJkNzNjM2M5YTAwZmIzZTg4MzY0ZDg5MTZlMGVjY2JhYWU5MTdjOGQzNmJiMjEzMSIsImV4cCI6MTc2NzI3NTg2Mn0.qhrhcmQLzq6zDD7wSuU5EcZ7lBRD1-maktkFB57f288';
+  @override
+  void initState() {
+    super.initState();
+    _initializeAccessibility();
+  }
+
+
+  Future<void> _initializeAccessibility() async {
+    await flutterTts.setLanguage("en-US");
+    await flutterTts.setSpeechRate(0.5);
+  }
+
+  void _announceScreen() async {
+    if (_blindMode) {
+      const announcement = "Welcome to Energy Contract Screen. You can choose to supply or request energy. Touch the top half to supply energy, or bottom half to request energy.";
+      await flutterTts.speak(announcement);
+    }
+  }
+  Future<void> _verifyWithReclaim() async {
+  try {
+    setState(() => _isLoading = true);
+
+    final reclaimProofRequest = await ReclaimProofRequest.init(
+      "0xA88303Bac47FAa6ca9b2d144c36a9e5642b2670f",
+      "0xb3eedcb09d8183836fbb809863e2adb02fa12cbcc554aaa7ab9548c8260981a2",
+      "f9f383fd-32d9-4c54-942f-5e9fda349762",
+    );
+
+    final requestUrl = await reclaimProofRequest.getRequestUrl();
+    
+    if (await canLaunchUrl(Uri.parse(requestUrl))) {
+      await reclaimProofRequest.startSession(
+        onSuccess: (proof) {
+          setState(() {
+            _isVerified = true;
+            _verificationStatus = 'Verification successful!';
+            _isLoading = false;
+          });
+        },
+        onError: (error) {
+          setState(() {
+            _verificationStatus = 'Verification failed: ${error.toString()}';
+            _isLoading = false;
+          });
+        },
+      );
+
+      await launchUrl(
+        Uri.parse(requestUrl),
+        mode: LaunchMode.externalApplication,
+      );
+    }
+  } catch (e) {
+    setState(() {
+      _verificationStatus = 'Error: ${e.toString()}';
+      _isLoading = false;
+    });
+  }
+}
+  
+  void _stopSpeaking() async {
+    await flutterTts.stop();
+  }
+
+  void _announceFormFields() async {
+    if (_blindMode) {
+      final action = _isSupplying! ? "supply" : "request";
+      await flutterTts.speak("Please enter the energy amount in kilowatts and price per kilowatt for your $action.");
+    }
+  }
+
+  void _announceContractDetails(Map<String, dynamic> contract) async {
+    if (_blindMode) {
+      final details = """
+        Contract generated successfully. 
+        The contract has been stored on IPFS with CID: ${contract['ipfsCid']}.
+        This contract is between seller with Property ID: ${contract['sellerPropertyId']} 
+        and buyer with Property ID: ${contract['buyerPropertyId']}.
+        The agreed energy amount is ${contract['energy']} kilowatts,
+        at a price of ${contract['pricePerUnit']} rupees per kilowatt,
+        for a total price of ${contract['totalPrice']} rupees.
+        Contract date is ${DateTime.parse(contract['date']).toString()}.
+        The contract has been saved and can be downloaded from the downloads section.
+        Please tap the close button at the bottom right to complete the process.
+      """;
+      await flutterTts.speak(details);
+    }
+}
+
 
   @override
   void dispose() {
     _energyController.dispose();
     _priceController.dispose();
+    _stopSpeaking();
     super.dispose();
   }
+
+  final String _pinataJWT =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI4ODNiZDEyZC02NTQ0LTQ1NWQtYTc1ZS0zNTg5YzAwNGI1MjkiLCJlbWFpbCI6InBlc3dhbmlzYWFjaGlAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6Ijk2ZDgzODYyN2U5ZTA2MWFjMTFhIiwic2NvcGVkS2V5U2VjcmV0IjoiNzdlNGFhNGUxMDAxMTA1ZDJkNzNjM2M5YTAwZmIzZTg4MzY0ZDg5MTZlMGVjY2JhYWU5MTdjOGQzNmJiMjEzMSIsImV4cCI6MTc2NzI3NTg2Mn0.qhrhcmQLzq6zDD7wSuU5EcZ7lBRD1-maktkFB57f288';
+
+ 
 
   Future<String> _uploadToPinata(List<int> fileBytes) async {
     try {
@@ -63,37 +164,142 @@ class _ContractScreenState extends State<ContractScreen> {
     }
   }
 
-  Future<void> _handleEnergyTransaction() async {
-    if (_energyController.text.isEmpty || _priceController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Please enter both energy amount and price')),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      final energy = double.parse(_energyController.text);
-      final price = double.parse(_priceController.text);
-      if (_isSupplying!) {
-        await _handleEnergySupply(energy, price);
-      } else {
-        await _handleEnergyRequest(energy, price);
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red.shade400,
-        ),
-      );
-    } finally {
-      setState(() => _isLoading = false);
-    }
+  void _handleEnergyTransaction() async {
+  if (_energyController.text.isEmpty || _priceController.text.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please enter both energy amount and price')),
+    );
+    return;
   }
 
+  // Only verify sellers using Reclaim
+  if (_isSupplying == true && !_isVerified) {
+    await _verifyWithReclaim();
+    return;
+  }
+
+  setState(() => _isLoading = true);
+
+  try {
+    final energy = double.parse(_energyController.text);
+    final price = double.parse(_priceController.text);
+    final user = context.read<AuthProvider>().user;
+    
+    if (user == null) {
+      throw Exception('User not logged in');
+    }
+
+    // Add to respective collection
+    await _firestore.collection(_isSupplying! ? 'UserSellers' : 'UserBuyers').add({
+      'propertyId': user.propertyID,
+      'energy': energy,
+      'price': price,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    // Find optimal match
+    final match = await _findOptimalMatch(
+      energy,
+      price,
+      _isSupplying!,
+      user.propertyID,
+    );
+
+    if (match != null) {
+      // Generate contract with matched party
+      final contract = await _generateContract(
+        energy,
+        _isSupplying! ? price : match['price'],
+        _isSupplying! ? user.propertyID : match['propertyId'],
+        _isSupplying! ? match['propertyId'] : user.propertyID,
+      );
+
+      // Remove matched entries
+      await _firestore
+          .collection(_isSupplying! ? 'UserBuyers' : 'UserSellers')
+          .doc(match['docId'])
+          .delete();
+          
+      await _firestore
+          .collection(_isSupplying! ? 'UserSellers' : 'UserBuyers')
+          .where('propertyId', isEqualTo: user.propertyID)
+          .get()
+          .then((docs) {
+        for (var doc in docs.docs) {
+          doc.reference.delete();
+        }
+      });
+
+      // Update green points for supplier
+      if (_isSupplying!) {
+        await context
+            .read<UserProvider>()
+            .updateGreenPoints((energy * 10).round());
+        await context
+            .read<UserProvider>()
+            .addContractToHistory(contract['ipfsCid']);
+      }
+
+      if (!mounted) return;
+      await _showEnhancedContractDialog(contract);
+    } else {
+      if (!mounted) return;
+      await _showNoMatchDialog(_isSupplying!);
+      Navigator.pop(context);
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Error: ${e.toString()}'),
+        backgroundColor: Colors.red.shade400,
+      ),
+    );
+  } finally {
+    setState(() => _isLoading = false);
+  }
+}
+
+// Add the matching algorithm function:
+
+Future<Map<String, dynamic>?> _findOptimalMatch(
+  double energy,
+  double price,
+  bool isSeller,
+  String userPropertyId,
+) async {
+  final query = _firestore.collection(isSeller ? 'UserBuyers' : 'UserSellers')
+      .where('propertyId', isNotEqualTo: userPropertyId);
+      
+  final docs = await query.get();
+  if (docs.docs.isEmpty) return null;
+
+  final matches = docs.docs.map((doc) {
+    final data = doc.data();
+    final energyDiff = (data['energy'] - energy).abs();
+    final priceDiff = (data['price'] - price).abs();
+    
+    final normalizedEnergyDiff = energyDiff / energy;
+    final normalizedPriceDiff = priceDiff / price;
+    
+    final score = 1 - (normalizedEnergyDiff * 0.7 + normalizedPriceDiff * 0.3);
+    
+    return {
+      ...data,
+      'docId': doc.id,
+      'score': score,
+    };
+  }).where((match) {
+    if (isSeller) {
+      return match['energy'] <= energy && match['price'] >= price * 0.8;
+    } else {
+      return match['energy'] >= energy && match['price'] <= price * 1.2;
+    }
+  }).toList();
+
+  matches.sort((a, b) => b['score'].compareTo(a['score']));
+  
+  return matches.isNotEmpty ? matches.first : null;
+}
   Future<void> _handleEnergySupply(double energy, double price) async {
     final user = context.read<AuthProvider>().user;
     if (user == null) return;
@@ -257,6 +463,10 @@ class _ContractScreenState extends State<ContractScreen> {
       List<QueryDocumentSnapshot> matches,
       {required bool isSeller,
       required double requestedPrice}) {
+        if (_blindMode) {
+      final type = isSeller ? "buyers" : "sellers";
+      flutterTts.speak("Found ${matches.length} potential $type. Tap at the center of the screen to generate contract");
+    }
     return showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => AlertDialog(
@@ -321,6 +531,12 @@ class _ContractScreenState extends State<ContractScreen> {
   }
 
   Future<void> _showNoMatchDialog(bool isSeller) {
+    if (_blindMode) {
+      final message = isSeller
+          ? 'No matching buyers found at the moment. We will notify you when a suitable buyer is available.'
+          : 'No matching sellers found at the moment. We will notify you when a suitable seller is available.';
+      flutterTts.speak(message);
+    }
     return showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -376,6 +592,7 @@ class _ContractScreenState extends State<ContractScreen> {
       'pricePerUnit': price,
       'totalPrice': energy * price,
       'date': DateTime.now().toIso8601String(),
+      'status': 'PENDING'
     };
 
     final pdf = pw.Document();
@@ -450,6 +667,8 @@ class _ContractScreenState extends State<ContractScreen> {
   }
 
   Future<void> _showEnhancedContractDialog(Map<String, dynamic> contract) {
+    _announceContractDetails(contract);  // Call this at the start
+    
     return showDialog(
       context: context,
       barrierDismissible: false,
@@ -497,11 +716,6 @@ class _ContractScreenState extends State<ContractScreen> {
                             showCopy: true,
                           ),
                           _buildContractField(
-                            'Contract Link',
-                            'https://w3s.link/ipfs/${contract['ipfsCid']}',
-                            showCopy: true,
-                          ),
-                          _buildContractField(
                             'Seller Property ID',
                             contract['sellerPropertyId'],
                           ),
@@ -542,6 +756,9 @@ class _ContractScreenState extends State<ContractScreen> {
                           style: GoogleFonts.poppins(),
                         ),
                         onPressed: () async {
+                          if (_blindMode) {
+                            await flutterTts.speak("Downloading contract PDF");
+                          }
                           final tempDir = await getTemporaryDirectory();
                           final file = File('${tempDir.path}/contract.pdf');
                           if (await file.exists()) {
@@ -560,6 +777,9 @@ class _ContractScreenState extends State<ContractScreen> {
                           style: GoogleFonts.poppins(),
                         ),
                         onPressed: () {
+                          if (_blindMode) {
+                            flutterTts.speak("Closing contract dialog");
+                          }
                           Navigator.of(context).pop();
                           Navigator.of(context).pop();
                         },
@@ -573,8 +793,7 @@ class _ContractScreenState extends State<ContractScreen> {
         );
       },
     );
-  }
-
+}
   Widget _buildContractField(String label, String value,
       {bool showCopy = false}) {
     return Padding(
@@ -637,7 +856,30 @@ class _ContractScreenState extends State<ContractScreen> {
       ),
     );
   }
-
+  Widget _buildVerificationStatus() {
+  if (!_isSupplying!) return const SizedBox.shrink();
+  
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8.0),
+    child: Row(
+      children: [
+        Icon(
+          _isVerified ? Icons.verified : Icons.warning,
+          color: _isVerified ? Colors.green : Colors.orange,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          _isVerified 
+            ? 'Verified Supplier' 
+            : 'Verification required to supply energy',
+          style: GoogleFonts.poppins(
+            color: _isVerified ? Colors.green : Colors.orange,
+          ),
+        ),
+      ],
+    ),
+  );
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -645,6 +887,23 @@ class _ContractScreenState extends State<ContractScreen> {
         title: const Text('Energy Contract'),
         backgroundColor: Colors.green.shade500,
         foregroundColor: Colors.white,
+      
+      actions: [
+          IconButton(
+            icon: Icon(_blindMode ? Icons.visibility : Icons.visibility_off),
+            onPressed: () {
+              setState(() {
+                _blindMode = !_blindMode;
+                if (_blindMode) {
+                  _announceScreen();
+                } else {
+                  _stopSpeaking();
+                }
+              });
+            },
+            tooltip: 'Toggle Blind Mode',
+          ),
+        ],
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -718,6 +977,7 @@ class _ContractScreenState extends State<ContractScreen> {
                       padding: const EdgeInsets.all(24.0),
                       child: Column(
                         children: [
+                          _buildVerificationStatus(),
                           TextField(
                             controller: _energyController,
                             keyboardType: TextInputType.number,

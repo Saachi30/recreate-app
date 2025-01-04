@@ -80,7 +80,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'RECit Consumer',
+                    'RECreate Consumer',
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,

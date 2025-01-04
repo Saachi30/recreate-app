@@ -30,6 +30,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  
+  ar_flutter_plugin:
+    path: lib/plugins/ar_flutter_plugin
 
   google_mlkit_text_recognition: ^0.11.0
   http: ^1.1.0
@@ -50,6 +53,12 @@ dependencies:
   open_file: ^3.3.2
   # arcore_flutter_plugin: ^0.1.0
   vector_math: ^2.1.4
+  speech_to_text: ^7.0.0
+  reclaim_sdk: ^2.1.1
+  url_launcher: ^6.3.1
+  webview_flutter: ^4.10.0
+
+  # ar_flutter_plugin: ^0.7.3
   
   
 
@@ -60,6 +69,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -73,7 +83,11 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
-
+  assets:
+    - assets/models/solar_panel.glb
+    - assets/models/wind_turbine.glb
+    - assets/triangle.png
+    - assets/models/
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.

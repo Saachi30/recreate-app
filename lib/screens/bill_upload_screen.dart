@@ -70,34 +70,32 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
       final userId = context.read<AuthProvider>().user?.email;
       if (userId == null) throw Exception('User not authenticated');
 
-      // Print values for debugging
-      print('Analysis results:');
-      print('Usage: ${analysis['usage']}');
-      print('Amount: ${analysis['amount']}');
-      print('Comparison: ${analysis['comparison']}');
-      print('Renewable: ${analysis['renewable']}');
+      // Ensure all values are properly parsed as numbers
+      final double usage = _parseNumber(analysis['usage']);
+      final double amount = _parseNumber(analysis['amount']);
+      final double comparison = _parsePercentage(analysis['comparison']?.toString());
+      final double renewable = _parsePercentage(analysis['renewable']?.toString());
 
       // Calculate points using the analysis data
       final pointsResult = await PointsService.calculatePointsFromBill(
         {
-          'usage': double.parse(analysis['usage'].toString()), // Ensure numeric conversion
-          'amount': double.parse(analysis['amount'].toString()),
-          'improvement': analysis['comparison'] != null ? 
-              double.parse(analysis['comparison'].toString().replaceAll('%', '')) : 0.0,
-          'renewable': analysis['renewable'] != null ? 
-              double.parse(analysis['renewable'].toString().replaceAll('%', '')) : 0.0,
-          'peakUsageReduction': true, // Setting to true for testing
-          'returnedEnergy': widget.isGridReturn ? double.parse(analysis['usage'].toString()) : 0.0,
-          'billingPeriod': 'Current Period',
-          'meterNumber': 'N/A',
+          'usage': usage,
+          'amount': amount,
+          'improvement': comparison,
+          'renewable': renewable,
+          'peakUsageReduction': analysis['peakUsageReduction'] ?? false,
+          'returnedEnergy': widget.isGridReturn ? usage : 0.0,
+          'billingPeriod': analysis['billingPeriod'] ?? 'Current Period',
+          'meterNumber': analysis['meterNumber'] ?? 'N/A',
         },
         isGridReturn: widget.isGridReturn,
-        // userId: userId,
+         // Make sure to pass the userId
       );
 
-      // Print points result for debugging
-      print('Points calculated: ${pointsResult.points}');
-      print('Points breakdown: ${pointsResult.breakdown}');
+      // Ensure points are greater than 0
+      if (pointsResult.points <= 0) {
+        throw Exception('Invalid points calculation: ${pointsResult.points}');
+      }
 
       // Update user points
       if (!mounted) return;
@@ -116,11 +114,25 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
     }
   }
 
+  double _parseNumber(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble();
+    try {
+      return double.parse(value.toString().replaceAll(RegExp(r'[^\d.-]'), ''));
+    } catch (e) {
+      print('Error parsing number: $value');
+      return 0.0;
+    }
+  }
+
   double _parsePercentage(String? value) {
     if (value == null) return 0.0;
     try {
-      return double.parse(value.replaceAll(RegExp(r'[^\d.-]'), ''));
+      // Remove % sign and any other non-numeric characters except decimal point and minus
+      final cleanValue = value.replaceAll(RegExp(r'[^\d.-]'), '');
+      return double.parse(cleanValue);
     } catch (e) {
+      print('Error parsing percentage: $value');
       return 0.0;
     }
   }
@@ -134,6 +146,8 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
   }
 
   void _showSuccessMessage(PointsResult pointsResult) {
+    if (pointsResult.points <= 0) return; // Don't show message for 0 points
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Column(
@@ -141,7 +155,7 @@ class _BillUploadScreenState extends State<BillUploadScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '🎉 You earned ${pointsResult.points} green points!',
+              '🎉 You earned ${pointsResult.points.toStringAsFixed(0)} green points!',
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             if (pointsResult.breakdown.isNotEmpty)

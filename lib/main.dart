@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'providers/auth_provider.dart';
 import 'providers/user_provider.dart';
 import 'screens/auth_screen.dart';
@@ -9,12 +10,19 @@ import 'screens/community_screen.dart';
 import 'screens/leaderboard_screen.dart';
 import 'screens/bill_upload_screen.dart';
 import 'screens/profile_screen.dart';
-import 'package:flutter_gemini/flutter_gemini.dart';
+import 'screens/contract_screen.dart';
+import 'screens/redemption_screen.dart';
+
+// Create a global instance of FlutterTts
+final FlutterTts flutterTts = FlutterTts();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  Gemini.init(apiKey: 'YOUR_GEMINI_API_KEY');
+  
+  // Initialize TTS
+  await flutterTts.setLanguage("en-US");
+  await flutterTts.setSpeechRate(0.5);
 
   runApp(
     MultiProvider(
@@ -66,37 +74,54 @@ class _MainScreenState extends State<MainScreen> {
     const BillUploadScreen(),
   ];
 
-  void _onItemTapped(int index) {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _announceCurrentScreen();
+    });
+  }
+
+  void _announceCurrentScreen() async {
+    String announcement = "You are on the ${_getScreenName(_selectedIndex)} screen. ";
+    if (_selectedIndex == 0) {
+      announcement += "Available actions are: Trade Energy, Upload Bills, and Redemption.";
+    }
+    await flutterTts.speak(announcement);
+  }
+
+  String _getScreenName(int index) {
+    switch (index) {
+      case 0:
+        return "Home";
+      case 1:
+        return "Community";
+      case 2:
+        return "Leaderboard";
+      case 3:
+        return "Profile";
+      case 4:
+        return "Bill Upload";
+      default:
+        return "Unknown";
+    }
+  }
+
+  void _navigateToScreen(Widget screen) {
     final authProvider = context.read<AuthProvider>();
-    // Only require authentication for Community, Leaderboard, and Profile
-    if (authProvider.user == null && (index == 1 || index == 2 || index == 3)) {
+    if (authProvider.user == null) {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const AuthScreen()),
       );
-      return;
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => screen),
+      );
     }
-    
-    // For BillUploadScreen (index 4), check auth and navigate properly
-    if (index == 4) {
-      if (authProvider.user == null) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const AuthScreen()),
-        );
-      } else {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const BillUploadScreen()),
-        );
-      }
-      return;
-    }
-    
-    setState(() {
-      _selectedIndex = index;
-    });
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -131,7 +156,12 @@ class _MainScreenState extends State<MainScreen> {
         currentIndex: _selectedIndex,
         selectedItemColor: const Color(0xFF27AE60),
         unselectedItemColor: Colors.grey,
-        onTap: _onItemTapped,
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+          _announceCurrentScreen();
+        },
       ),
     );
   }

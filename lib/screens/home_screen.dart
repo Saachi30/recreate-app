@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:recmarketapp/screens/renewable_energy_ar.dart';
 import '../providers/auth_provider.dart';
 import 'auth_screen.dart';
 import 'chat_screen.dart';
@@ -9,6 +10,14 @@ import 'dart:convert';
 import '../services/news_service.dart';
 import 'contract_screen.dart';
 // import 'renewable_energy_ar.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:recmarketapp/screens/bill_upload_screen.dart';
+
+
+
+final FlutterTts flutterTts = FlutterTts();
+final stt.SpeechToText speech = stt.SpeechToText();
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,6 +35,10 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Article> _articles = [];
   bool _isLoadingArticles = true;
   String _articlesError = '';
+  bool _isListening = false;
+  bool _blindMode = false;
+  bool _isSpeaking = false;
+  bool _hasAnnounced = false;
 
   final List<Map<String, dynamic>> methods = [
     {
@@ -130,8 +143,116 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadArticles();
+    _initializeAccessibility();
   }
 
+  Future<void> _initializeAccessibility() async {
+    await flutterTts.setLanguage("en-US");
+    await flutterTts.setSpeechRate(0.5);
+    await speech.initialize();
+    
+    flutterTts.setCompletionHandler(() {
+      setState(() {
+        _isSpeaking = false;
+      });
+    });
+  }
+  void _toggleBlindMode() async {
+    setState(() {
+      _blindMode = !_blindMode;
+    });
+
+    if (_isSpeaking) {
+      await flutterTts.stop();
+      setState(() {
+        _isSpeaking = false;
+      });
+    }
+
+    if (_blindMode) {
+      setState(() {
+        _isSpeaking = true;
+      });
+      await flutterTts.speak("Blind mode enabled. Voice commands are now active. Tap at the center of the screen to trade energy");
+    }
+  }
+
+  void _announceKeyFeatures() async {
+    if (!_blindMode || _isSpeaking) return;
+    
+    setState(() {
+      _isSpeaking = true;
+    });
+    const announcement = "Welcome to RECreate. You can use voice commands for: Trade Energy, Upload Bills, and Redemption. Say 'help' for assistance.";
+    await flutterTts.speak(announcement);
+  }
+
+  void _startListening() async {
+    // Only allow voice commands in blind mode
+    if (!_blindMode) return;
+
+    if (!_isListening) {
+      bool available = await speech.initialize();
+      if (available) {
+        setState(() => _isListening = true);
+        speech.listen(
+          onResult: (result) {
+            if (result.finalResult) {
+              _handleVoiceCommand(result.recognizedWords.toLowerCase());
+              setState(() => _isListening = false);
+            }
+          },
+        );
+      }
+    }
+  }
+
+
+  void _handleVoiceCommand(String command) async {
+    if (!_blindMode) return;
+
+    setState(() {
+      _isSpeaking = true;
+    });
+
+    if (command.contains('help')) {
+      await flutterTts.speak("Available commands: trade energy, upload bills, redemption");
+      return;
+    }
+    if (command.contains('trade') || command.contains('energy')) {
+      _navigateToFeature(const ContractScreen());
+    } else if (command.contains('upload') || command.contains('bill')) {
+      _navigateToFeature(const BillUploadScreen());
+    } else if (command.contains('redemption')) {
+      // _navigateToFeature(const RedemptionScreen());
+    }
+  }
+
+  void _navigateToFeature(Widget screen) {
+    final authProvider = context.read<AuthProvider>();
+    if (authProvider.user == null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const AuthScreen()),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => screen),
+      );
+    }
+  }
+  TextStyle _getAdaptiveTextStyle({
+    required double normalSize,
+    required FontWeight weight,
+    Color? color,
+  }) {
+    return GoogleFonts.poppins(
+      fontSize: _blindMode ? normalSize * 1.5 : normalSize,
+      fontWeight: weight,
+      color: color ?? (_blindMode ? Colors.black : Colors.grey[700]),
+    );
+  }
   Future<void> _loadArticles() async {
     try {
       setState(() {
@@ -154,13 +275,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final authProvider = context.watch<AuthProvider>();
+Widget build(BuildContext context) {
+  final authProvider = context.watch<AuthProvider>();
 
-    return Scaffold(
+  return Scaffold(
       appBar: AppBar(
-        title: const Text('RECit'),
+        title: const Text('RECreate'),
         actions: [
+          IconButton(
+            icon: Icon(_blindMode ? Icons.visibility : Icons.visibility_off),
+            onPressed: _toggleBlindMode,
+            tooltip: 'Toggle Blind Mode',
+          ),
           if (authProvider.user == null)
             TextButton(
               onPressed: () => Navigator.push(
@@ -172,43 +298,42 @@ class _HomeScreenState extends State<HomeScreen> {
           else
             TextButton(
               onPressed: () => authProvider.logout(),
-              child:
-                  const Text('Logout', style: TextStyle(color: Colors.white)),
+              child: const Text('Logout', style: TextStyle(color: Colors.white)),
             ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          setState(() => _isLoading = true);
-          await Future.delayed(const Duration(seconds: 1));
-          setState(() => _isLoading = false);
-        },
-        child: SingleChildScrollView(
-          controller: _scrollController,
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (authProvider.user != null)
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'Welcome, ${authProvider.user!.name}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                    ),
+      ]
+    ),
+    body: RefreshIndicator(
+      onRefresh: () async {
+        setState(() => _isLoading = true);
+        await Future.delayed(const Duration(seconds: 1));
+        setState(() => _isLoading = false);
+      },
+      child: SingleChildScrollView(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (authProvider.user != null)
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  'Welcome, ${authProvider.user!.name}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-              _buildHeroSection(),
-              _buildArticlesSection(),
-              _buildGuideSection(),
-              _buildFAQSection(),
-            ],
-          ),
+              ),
+            _buildHeroSection(),
+            _buildArticlesSection(),
+            _buildGuideSection(),
+            _buildFAQSection(),
+          ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
+    ),
+    floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(
             context,
@@ -216,10 +341,10 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
         child: const Icon(Icons.chat),
-        backgroundColor: Theme.of(context).primaryColor,
+        backgroundColor: Colors.green,
       ),
-    );
-  }
+  );
+}
 
   Widget _buildArticlesSection() {
     if (_isLoadingArticles) {
@@ -445,7 +570,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   onPressed: () => setState(() => _activeTabIndex = 0),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _activeTabIndex == 0
-                        ? Colors.deepPurple.withOpacity(0.6)
+                        ? const Color.fromARGB(255, 58, 183, 73).withOpacity(0.6)
                         : Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
@@ -776,7 +901,7 @@ class _HomeScreenState extends State<HomeScreen> {
     mainAxisAlignment: MainAxisAlignment.center,
     children: [
       Container(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16), // Increased width
         decoration: BoxDecoration(
           color: Colors.green.shade500,
           borderRadius: BorderRadius.circular(12),
@@ -816,54 +941,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text(
                   'Trade Energy',
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      const SizedBox(width: 8),  // Spacing between buttons
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.blue.shade500,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              spreadRadius: 1,
-              blurRadius: 5,
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>  ContractScreen(),
-                ),
-              );
-            },
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.view_in_ar,
-                  size: 28,
-                  color: Colors.white,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'View in AR',
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: 14, // Slightly larger font size for emphasis
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
@@ -876,6 +954,7 @@ class _HomeScreenState extends State<HomeScreen> {
     ],
   );
 }
+
   Widget _buildStatCard(String value, String label, MaterialColor color) {
     return Material(
       color: Colors.transparent,
@@ -924,3 +1003,4 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
