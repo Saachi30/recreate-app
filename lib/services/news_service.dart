@@ -33,7 +33,7 @@ class Article {
 }
 
 class NewsService {
-  static const String _apiKey = '63359b42fa2747aa8003ba68d9e0c9b7';
+  static const String _apiKey = '64416b065d9a418d9687b7f2b4c79695';
   static const String _baseUrl = 'https://newsapi.org/v2';
 
   static final List<String> _searchKeywords = [

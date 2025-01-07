@@ -85,7 +85,7 @@ class _MainScreenState extends State<MainScreen> {
   void _announceCurrentScreen() async {
     String announcement = "You are on the ${_getScreenName(_selectedIndex)} screen. ";
     if (_selectedIndex == 0) {
-      announcement += "Available actions are: Trade Energy, Upload Bills, and Redemption.";
+      announcement += "Voice commands are now active. Tap at the center of the screen to trade energy.";
     }
     await flutterTts.speak(announcement);
   }

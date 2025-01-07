@@ -216,7 +216,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     if (command.contains('help')) {
-      await flutterTts.speak("Available commands: trade energy, upload bills, redemption");
+      await flutterTts.speak("Voice commands are now active. Tap at the center of the screen to trade energy");
       return;
     }
     if (command.contains('trade') || command.contains('energy')) {
@@ -283,7 +283,7 @@ Widget build(BuildContext context) {
         title: const Text('RECreate'),
         actions: [
           IconButton(
-            icon: Icon(_blindMode ? Icons.visibility : Icons.visibility_off),
+            icon: Icon(_blindMode ? Icons.accessibility : Icons.hide_source),
             onPressed: _toggleBlindMode,
             tooltip: 'Toggle Blind Mode',
           ),
